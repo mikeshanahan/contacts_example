@@ -5,7 +5,7 @@ import os
 import uuid
 from fastapi import HTTPException
 
-# Wouldn't be inline normally
+
 os.environ["CONTACTS_DATABASE"] = "contacts-db"
 
 # Partition and sort key names

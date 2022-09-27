@@ -7,6 +7,10 @@ Parameters:
     Default: python3.9
     Description: Python version for lambda functions
     Type: String
+  S3Bucket:
+    Default: contacts-example-deployment-bucket
+    Description: S3 bucket to hold build files
+    Type: String
 
 Resources:
   contactsdb:
@@ -26,3 +30,94 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
+
+  ContactsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: contacts-lambda
+      Handler: main.handler
+      MemorySize: 1024
+      Role: !GetAtt 'LambdaRole.Arn'
+      Runtime: !Ref 'PythonVersion'
+      Timeout: 30
+      Layers:
+        - !Ref APILayer
+      CodeUri:
+        Bucket: !Ref S3Bucket
+        Key: build-1/api.zip
+      Environment:
+        Variables:
+          CONTACTS_DATABASE: contacts-db
+      Events:
+        ContactsGetEvent:
+          Properties:
+            PayloadFormatVersion: "1.0"
+            Method: get
+            Path: /{proxy+}
+          Type: HttpApi
+        ContactsPutEvent:
+          Properties:
+            PayloadFormatVersion: "1.0"
+            Method: put
+            Path: /{proxy+}
+          Type: HttpApi
+        ContactsPostEvent:
+          Properties:
+            PayloadFormatVersion: "1.0"
+            Method: post
+            Path: /{proxy+}
+          Type: HttpApi
+        ContactsDeleteEvent:
+          Properties:
+            PayloadFormatVersion: "1.0"
+            Method: delete
+            Path: /{proxy+}
+          Type: HttpApi
+  APILayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - !Ref PythonVersion
+      Content:
+        S3Bucket: !Ref S3Bucket
+        S3Key: build-1/api_layer.zip
+      Description: API Dependencies Layer for Python
+      LayerName: api-layer
+
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: API-Lambda-Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "dynamodb:Scan"
+                  - "dynamodb:Query"
+                  - "dynamodb:GetRecords"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:BatchWriteItem"
+                  - "dynamodb:DescribeTable"
+                  - "dynamodb:DeleteItem"
+                Resource:
+                  - "*"
